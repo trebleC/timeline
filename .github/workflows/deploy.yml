@@ -1,0 +1,59 @@
+name: Deploy to Tencent Cloud CVM (Docker)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Copy files to CVM via SCP
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.CVM_HOST }}
+        username: ${{ secrets.CVM_USERNAME }}
+        key: ${{ secrets.CVM_SSH_KEY }}
+        source: "./"
+        target: "/home/${{ secrets.CVM_USERNAME }}/timeline/"
+
+    - name: Deploy via Docker on CVM
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.CVM_HOST }}
+        username: ${{ secrets.CVM_USERNAME }}
+        key: ${{ secrets.CVM_SSH_KEY }}
+        script: |
+          cd /home/${{ secrets.CVM_USERNAME }}/timeline/
+          
+          # Stop and remove existing container
+          docker stop timeline-app || true
+          docker rm timeline-app || true
+          
+          # Build new image
+          docker build -t timeline-app .
+          
+          # Run container
+          docker run -d \
+            --name timeline-app \
+            -p 80:80 \
+            timeline-app
+          
+          echo "Deployment completed successfully!"

@@ -10,6 +10,7 @@
 - 💾 **数据持久化**：使用 localStorage 存储数据
 - 📥 **数据导入**：支持从文本文件导入事件数据
 - 📤 **数据导出**：可将事件数据导出为 TXT 文件
+- ☁️ **自动化部署**：支持通过 GitHub Actions 自动部署到腾讯云 CVM
 - 📱 **响应式设计**：适配移动端和桌面端
 
 ## 快速开始
@@ -84,7 +85,6 @@ npm run build
 - Vue 3 (Composition API)
 - Vite
 - Naive UI (部分组件)
-- Day.js (日期处理)
 
 ## 示例数据
 
@@ -101,4 +101,17 @@ npm run dev
 
 # 构建生产版本
 npm run build
+
+# 运行测试
+npm test
 ```
+
+## 部署到腾讯云 CVM (Docker 环境)
+
+本项目支持通过 GitHub Actions 自动部署到腾讯云 CVM 的 Docker 环境。详细配置说明请参考 [DEPLOYMENT.md](DEPLOYMENT.md) 文件。
+
+### 配置步骤
+
+1. 在腾讯云创建 CVM 实例并安装 Docker
+2. 配置 GitHub Secrets
+3. 推送代码到主分支即可自动部署
