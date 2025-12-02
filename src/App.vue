@@ -1,45 +1,88 @@
 <template>
-  <div class="timeline-app">
-    <header class="app-header">
-      <h1>📱 微博大事件时间线</h1>
-      
-      <div class="tabs">
-        <button 
-          :class="['tab-btn', { active: currentTab === 'timeline' }]"
-          @click="currentTab = 'timeline'"
-        >
-          📋 时间线
-        </button>
-        <button 
-          :class="['tab-btn', { active: currentTab === 'add' }]"
-          @click="currentTab = 'add'"
-        >
-          ➕ 添加事件
-        </button>
-        <button 
-          :class="['tab-btn', { active: currentTab === 'import' }]"
-          @click="currentTab = 'import'"
-        >
-          📥 导入数据
-        </button>
-      </div>
-    </header>
-    
-    <div class="content">
-      <EventForm v-if="currentTab === 'add'" @add-event="handleAddEvent" />
-      <ImportData v-if="currentTab === 'import'" @import-success="handleImportSuccess" @clear-all="handleClearAll" />
-      <Timeline v-if="currentTab === 'timeline'" :events="events" @delete-event="deleteEvent" />
-    </div>
-  </div>
+  <n-config-provider :theme-overrides="themeOverrides">
+    <n-layout class="timeline-app">
+      <n-layout-header class="app-header">
+        <h1>📱 事件时间线</h1>
+        <n-space>
+          <n-button circle @click="showAddModal = true" title="添加事件" secondary>
+            <template #icon>
+              <n-icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </n-icon>
+            </template>
+          </n-button>
+          <n-button circle @click="showImportModal = true" title="导入数据" secondary>
+            <template #icon>
+              <n-icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </n-icon>
+            </template>
+          </n-button>
+          <n-button circle @click="downloadTimeline" title="下载数据" secondary>
+            <template #icon>
+              <n-icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </n-icon>
+            </template>
+          </n-button>
+        </n-space>
+      </n-layout-header>
+
+
+    </n-layout>
+    <n-layout-content class="content">
+      <Timeline :events="sortedEvents" @delete-event="deleteEvent" />
+    </n-layout-content>
+    <!-- 添加事件弹窗 -->
+    <n-modal v-model:show="showAddModal" preset="card" title="➕ 添加事件" :bordered="false" style="max-width: 800px">
+      <EventForm @add-event="handleAddEvent" />
+    </n-modal>
+
+    <!-- 导入数据弹窗 -->
+    <n-modal v-model:show="showImportModal" preset="card" title="📥 导入数据" :bordered="false" style="max-width: 800px">
+      <ImportData @import-success="handleImportSuccess" @clear-all="handleClearAll" />
+    </n-modal>
+  </n-config-provider>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
+import {
+  NConfigProvider,
+  NLayout,
+  NLayoutHeader,
+  NLayoutContent,
+  NButton,
+  NIcon,
+  NSpace,
+  NModal
+} from 'naive-ui'
 import EventForm from './components/EventForm.vue'
 import Timeline from './components/Timeline.vue'
 import ImportData from './components/ImportData.vue'
 
-const currentTab = ref('timeline')
+const showAddModal = ref(false)
+const showImportModal = ref(false)
+
+// 主题配置
+const themeOverrides = {
+  common: {
+    primaryColor: '#667eea',
+    primaryColorHover: '#764ba2',
+    primaryColorPressed: '#5568d3'
+  }
+}
 
 // 从 localStorage 加载数据
 const loadEvents = () => {
@@ -53,18 +96,27 @@ const loadEvents = () => {
     }
   }
   return [
-    {
-      id: 1,
-      title: '示例事件',
-      content: '这是一个示例大事件，展示时间线的效果。你可以添加自己的事件！',
-      time: '2024-12-01T10:00',
-      location: '北京',
-      image: 'https://via.placeholder.com/400x300/667eea/ffffff?text=示例图片'
-    }
+    // {
+    //   id: 1,
+    //   title: '示例事件',
+    //   content: '这是一个示例大事件，展示时间线的效果。你可以添加自己的事件！',
+    //   time: '2024-12-01T10:00',
+    //   location: '北京',
+    //   image: 'https://via.placeholder.com/400x300/667eea/ffffff?text=示例图片'
+    // }
   ]
 }
 
 const events = ref(loadEvents())
+
+// 按时间排序的事件列表（从新到旧）
+const sortedEvents = computed(() => {
+  return [...events.value].sort((a, b) => {
+    const timeA = new Date(a.time).getTime()
+    const timeB = new Date(b.time).getTime()
+    return timeB - timeA // 降序排列，最新的在前
+  })
+})
 
 // 监听 events 变化，自动保存到 localStorage
 watch(events, (newEvents) => {
@@ -76,7 +128,7 @@ const handleAddEvent = (event) => {
     ...event,
     id: Date.now()
   })
-  currentTab.value = 'timeline'
+  showAddModal.value = false
 }
 
 const deleteEvent = (id) => {
@@ -86,7 +138,7 @@ const deleteEvent = (id) => {
 // 处理导入成功
 const handleImportSuccess = (newEvents) => {
   events.value = [...newEvents, ...events.value]
-  currentTab.value = 'timeline'
+  showImportModal.value = false
 }
 
 // 处理清空数据
@@ -95,9 +147,72 @@ const handleClearAll = () => {
   localStorage.removeItem('weiboTimeline')
 }
 
+// 下载时间线数据为txt文件
+const downloadTimeline = () => {
+  // 按年份分组
+  const groupedEvents = {}
+  events.value.forEach((event, index) => {
+    // 确保事件时间有效
+    const eventDate = new Date(event.time);
+    if (isNaN(eventDate.getTime())) {
+      return;
+    }
+    
+    const year = eventDate.getFullYear();
+    
+    if (!groupedEvents[year]) {
+      groupedEvents[year] = [];
+    }
+    groupedEvents[year].push(event);
+  });
+
+  // 时段映射
+  const timePeriods = ['清晨', '早上', '中午', '午后', '傍晚', '晚上', '深夜']
+
+  // 生成txt内容
+  let content = ''
+  const sortedYears = Object.keys(groupedEvents).map(year => parseInt(year)).sort((a, b) => b - a); // 按年份降序排列
+  
+  sortedYears.forEach(year => {
+    content += `${year}年\n\n`
+    
+    groupedEvents[year]
+      .sort((a, b) => new Date(b.time) - new Date(a.time)) // 按时间降序排列
+      .forEach(event => {
+        const date = new Date(event.time)
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        
+        // 只有当事件有时间时才输出
+        if (event.time) {
+          let timeStr = `${month}月${day}日`
+          
+          // 如果事件有时段信息，则添加时段
+          if (event.period && timePeriods.includes(event.period)) {
+            timeStr += event.period
+          }
+          
+          content += `${timeStr}\n${event.content}\n\n`
+        }
+      })
+    content += '\n'
+  })
+
+  // 创建并下载文件
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `时间线数据_${new Date().getFullYear()}年${String(new Date().getMonth() + 1).padStart(2, '0')}月${String(new Date().getDate()).padStart(2, '0')}日.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // 组件挂载时加载数据
 onMounted(() => {
-  console.log('已加载', events.value.length, '条事件')
+  // console.log('已加载', events.value.length, '条事件')
 })
 </script>
 
@@ -105,73 +220,51 @@ onMounted(() => {
 .timeline-app {
   max-width: 1000px;
   margin: 0 auto;
+  background: transparent;
+  padding: 0 1rem;
+  background-color: #fff;
+
 }
 
 .app-header {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
-  padding: 1rem;
+  padding: 1rem 1.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 10px;
   color: white;
   box-shadow: 0 2px 10px rgba(102, 126, 234, 0.15);
+
 }
 
 .app-header h1 {
   font-size: 1.5rem;
-  margin-bottom: 0.8rem;
+  margin: 0;
   font-weight: 700;
 }
 
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-}
-
-.tab-btn {
-  padding: 0.4rem 1.2rem;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.tab-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-.tab-btn.active {
-  background: white;
-  color: #667eea;
-  border-color: white;
-}
-
 .content {
-  margin-top: 1rem;
+  padding: 0;
 }
 
-@media (max-width: 768px) {
-  .app-header {
-    padding: 0.8rem;
-  }
-  
-  .app-header h1 {
-    font-size: 1.3rem;
-    margin-bottom: 0.6rem;
-  }
-  
-  .tabs {
-    flex-direction: column;
-  }
-  
-  .tab-btn {
-    width: 100%;
-    padding: 0.5rem 1rem;
-  }
+/* 添加美化样式 */
+:deep(.n-button) {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
+
+:deep(.n-button:hover) {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3) !important;
+}
+
+:deep(.n-modal) {
+  border-radius: 16px !important;
+}
+
+:deep(.n-modal-content) {
+  border-radius: 16px !important;
+}
+
 </style>

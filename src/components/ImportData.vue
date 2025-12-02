@@ -1,8 +1,7 @@
 <template>
     <div class="import-section">
         <div class="import-card">
-            <h2>📥 导入大事记数据</h2>
-            <p class="import-hint">请粘贴你的大事记数据，格式示例：</p>
+            <p class="import-hint">请粘贴你的大事记数据，或直接使用已加载的示例数据：</p>
             <pre class="format-example">2022年
 
 12月17日深夜
@@ -10,6 +9,7 @@
 
 12月19日
 腾讯音乐娱乐集团...</pre>
+            <p class="import-hint-small">默认已加载示例数据，可直接点击“开始导入”按钮</p>
             <textarea v-model="importText" placeholder="请粘贴大事记数据..." rows="15" class="import-textarea"></textarea>
             <div class="import-actions">
                 <button @click="handleImport" class="import-btn">📥 开始导入</button>
@@ -23,7 +23,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const emit = defineEmits(['import-success', 'clear-all'])
 
@@ -31,13 +31,36 @@ const importText = ref('')
 const importMessage = ref('')
 const importSuccess = ref(false)
 
+// 加载示例数据
+const loadExampleData = async () => {
+  try {
+    const response = await fetch('/example.txt')
+    if (response.ok) {
+      const text = await response.text()
+      importText.value = text
+    }
+  } catch (error) {
+    console.warn('Failed to load example data:', error)
+  }
+}
+
+// 组件挂载时加载示例数据
+onMounted(() => {
+  loadExampleData()
+})
+
 // 导入数据解析函数
 const parseImportData = (text) => {
     const lines = text.trim().split('\n')
     const parsedEvents = []
     let currentYear = ''
     let currentDate = ''
+    let currentPeriod = ''
     let currentContent = []
+    let hasDetectedYear = false
+    
+    // 时段词列表
+    const timePeriods = ['清晨', '早上', '中午', '午后', '傍晚', '晚上', '深夜']
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim()
@@ -46,16 +69,11 @@ const parseImportData = (text) => {
             continue
         }
 
-        // 匹配年份
+        // 匹配年份 - 可以识别多个年份
         if (/^\d{4}年$/.test(line)) {
-            currentYear = line.replace('年', '')
-            continue
-        }
-
-        // 匹配日期
-        const dateMatch = line.match(/^(\d{1,2})月(\d{1,2})日(.*)$/)
-        if (dateMatch) {
+            // 在设置新的年份之前，保存当前的事件（如果有的话）
             if (currentDate && currentContent.length > 0) {
+                const year = currentDate.split('-')[0]
                 const month = currentDate.split('-')[1]
                 const day = currentDate.split('-')[2]
                 const title = `${month}月${day}日`
@@ -64,8 +82,53 @@ const parseImportData = (text) => {
                 parsedEvents.push({
                     id: Date.now() + parsedEvents.length,
                     title: title,
+                    period: currentPeriod,
                     content: content,
-                    time: `${currentYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00`,
+                    time: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00`,
+                    location: '',
+                    image: ''
+                })
+                
+                // 重置内容和时段
+                currentContent = []
+                currentPeriod = ''
+            }
+            
+            currentYear = line.replace('年', '')
+            hasDetectedYear = true
+            // 当遇到新的年份时，重置currentDate以避免使用旧年份
+            currentDate = ''
+            continue
+        }
+
+        // 匹配日期
+        const dateMatch = line.match(/^(\d{1,2})月(\d{1,2})日(.*)$/)
+        if (dateMatch) {
+            // 确保已经有年份信息
+            if (!currentYear) {
+                console.warn('Skipping event without year:', line);
+                continue;
+            }
+            
+            // 确保currentYear是有效的4位数字
+            if (!/^\d{4}$/.test(currentYear)) {
+                console.warn('Invalid year format:', currentYear);
+                continue;
+            }
+            
+            if (currentDate && currentContent.length > 0) {
+                const year = currentDate.split('-')[0]
+                const month = currentDate.split('-')[1]
+                const day = currentDate.split('-')[2]
+                const title = `${month}月${day}日`
+                const content = currentContent.join('\n\n')
+
+                parsedEvents.push({
+                    id: Date.now() + parsedEvents.length,
+                    title: title,
+                    period: currentPeriod,
+                    content: content,
+                    time: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00`,
                     location: '',
                     image: ''
                 })
@@ -76,10 +139,23 @@ const parseImportData = (text) => {
             const extra = dateMatch[3]
             currentDate = `${currentYear}-${month}-${day}`
             currentContent = []
-
-            if (extra) {
-                currentContent.push(extra)
+            
+            // 检查extra是否是时段词
+            if (extra && timePeriods.includes(extra)) {
+                currentPeriod = extra
+            } else {
+                currentPeriod = ''
+                // 如果extra不是时段词,才添加到内容中
+                if (extra) {
+                    currentContent.push(extra)
+                }
             }
+            continue
+        }
+        
+        // 检查是否是单独的时段词行
+        if (timePeriods.includes(line)) {
+            currentPeriod = line
             continue
         }
 
@@ -90,19 +166,28 @@ const parseImportData = (text) => {
 
     // 保存最后一个事件
     if (currentDate && currentContent.length > 0) {
+        // 确保已经有年份信息
+        const year = currentDate.split('-')[0]
         const month = currentDate.split('-')[1]
         const day = currentDate.split('-')[2]
-        const title = `${month}月${day}日`
-        const content = currentContent.join('\n\n')
+        
+        // 确保年份是有效的4位数字
+        if (!year || !/^\d{4}$/.test(year)) {
+            console.warn('Skipping last event without valid year');
+        } else {
+            const title = `${month}月${day}日`
+            const content = currentContent.join('\n\n')
 
-        parsedEvents.push({
-            id: Date.now() + parsedEvents.length,
-            title: title,
-            content: content,
-            time: `${currentYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00`,
-            location: '',
-            image: ''
-        })
+            parsedEvents.push({
+                id: Date.now() + parsedEvents.length,
+                title: title,
+                period: currentPeriod,
+                content: content,
+                time: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00`,
+                location: '',
+                image: ''
+            })
+        }
     }
 
     return parsedEvents
@@ -141,14 +226,14 @@ const handleImport = () => {
 
 // 清空所有数据
 const clearAllData = () => {
-    if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
-        emit('clear-all')
-        importMessage.value = '已清空所有数据'
-        importSuccess.value = true
-        setTimeout(() => {
-            importMessage.value = ''
-        }, 2000)
-    }
+  if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
+    emit('clear-all')
+    importMessage.value = '已清空所有数据'
+    importSuccess.value = true
+    setTimeout(() => {
+      importMessage.value = ''
+    }, 2000)
+  }
 }
 </script>
 
@@ -174,6 +259,14 @@ const clearAllData = () => {
 .import-hint {
     color: #666;
     margin-bottom: 1rem;
+}
+
+.import-hint-small {
+    color: #888;
+    font-size: 0.85rem;
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+    text-align: center;
 }
 
 .format-example {
@@ -261,17 +354,4 @@ const clearAllData = () => {
     color: #721c24;
 }
 
-@media (max-width: 768px) {
-    .import-card {
-        padding: 1.5rem;
-    }
-
-    .import-actions {
-        flex-direction: column;
-    }
-
-    .clear-btn {
-        width: 100%;
-    }
-}
 </style>
