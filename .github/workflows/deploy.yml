@@ -34,7 +34,7 @@ jobs:
         username: ${{ secrets.CVM_USERNAME }}
         key: ${{ secrets.CVM_SSH_KEY }}
         source: "./"
-        target: "/home/${{ secrets.CVM_USERNAME }}/timeline/"
+        target: "/myapp/timeline/"
 
     - name: Deploy via Docker on CVM
       uses: appleboy/ssh-action@v0.1.5
@@ -43,7 +43,7 @@ jobs:
         username: ${{ secrets.CVM_USERNAME }}
         key: ${{ secrets.CVM_SSH_KEY }}
         script: |
-          cd /home/${{ secrets.CVM_USERNAME }}/timeline/
+          cd /myapp/timeline/
           
           # Stop and remove existing container
           docker stop timeline-app || true
